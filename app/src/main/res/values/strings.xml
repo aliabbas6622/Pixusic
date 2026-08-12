@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">Player</string>
+    <string name="app_name">Pixusic</string>
+    <string name="media_notification_channel_name">Now playing</string>
 </resources>

@@ -34,6 +34,10 @@ class PlaylistViewModel(private val repository: PlaylistRepository) : ViewModel(
         viewModelScope.launch { repository.addSongToPlaylist(playlistId, songId) }
     }
 
+    fun removeSongFromPlaylist(playlistId: Long, songId: Long) {
+        viewModelScope.launch { repository.removeSongFromPlaylist(playlistId, songId) }
+    }
+
     suspend fun getSongsForPlaylist(playlistId: Long, allSongs: List<Song>): List<Song> {
         val ids = repository.getSongIdsForPlaylist(playlistId)
         val songMap = allSongs.associateBy { it.id }

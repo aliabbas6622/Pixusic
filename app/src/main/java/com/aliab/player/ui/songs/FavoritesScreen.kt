@@ -18,26 +18,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -61,6 +52,9 @@ fun FavoritesScreen(
     onShuffleAll: () -> Unit = {},
     onAddNext: (Song) -> Unit = {},
     onAddToQueueEnd: (Song) -> Unit = {},
+    onShare: (Song) -> Unit = {},
+    onShowDetails: (Song) -> Unit = {},
+    onDeleteSong: (Song) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -174,6 +168,9 @@ fun FavoritesScreen(
                         onClick = { onSongClick(index) },
                         onAddNext = { onAddNext(song) },
                         onAddToQueueEnd = { onAddToQueueEnd(song) },
+                        onShare = { onShare(song) },
+                        onShowDetails = { onShowDetails(song) },
+                        onDeleteSong = { onDeleteSong(song) },
                     )
                     if (index < favorites.lastIndex) {
                         HorizontalDivider(
@@ -193,12 +190,13 @@ fun FavoritesScreen(
 private fun FavoriteSongRow(
     song: Song,
     onClick: () -> Unit,
-    onAddNext: () -> Unit,
-    onAddToQueueEnd: () -> Unit,
+    onAddNext: () -> Unit = {},
+    onAddToQueueEnd: () -> Unit = {},
+    onShare: () -> Unit = {},
+    onShowDetails: () -> Unit = {},
+    onDeleteSong: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var menuExpanded by remember { mutableStateOf(false) }
-
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -238,43 +236,12 @@ private fun FavoriteSongRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Box {
-            IconButton(
-                onClick = { menuExpanded = true },
-                modifier = Modifier.size(40.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.MoreVert,
-                    contentDescription = "More options",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false },
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Play Next", style = MaterialTheme.typography.bodyMedium) },
-                    leadingIcon = {
-                        Text("▶+", style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    },
-                    onClick = { menuExpanded = false; onAddNext() },
-                )
-                DropdownMenuItem(
-                    text = { Text("Add to Queue", style = MaterialTheme.typography.bodyMedium) },
-                    leadingIcon = {
-                        Icon(
-                            Icons.AutoMirrored.Filled.PlaylistAdd,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    onClick = { menuExpanded = false; onAddToQueueEnd() },
-                )
-            }
-        }
+        SongOverflowMenu(
+            onPlayNext = onAddNext,
+            onAddToQueue = onAddToQueueEnd,
+            onShare = onShare,
+            onDetails = onShowDetails,
+            onDelete = onDeleteSong,
+        )
     }
 }

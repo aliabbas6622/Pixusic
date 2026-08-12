@@ -19,14 +19,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,10 +30,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -48,6 +40,7 @@ import com.aliab.player.model.Song
 import com.aliab.player.ui.artwork.AlbumArt
 import com.aliab.player.ui.formatDisplayName
 import com.aliab.player.ui.formatTime
+import com.aliab.player.ui.songs.SongOverflowMenu
 
 /**
  * Album detail: centred artwork, album/artist meta, Play All / Shuffle, then track list.
@@ -63,6 +56,9 @@ fun AlbumDetailScreen(
     onShuffleAll: (() -> Unit)? = null,
     onAddNext: ((Song) -> Unit)? = null,
     onAddToQueueEnd: ((Song) -> Unit)? = null,
+    onShare: ((Song) -> Unit)? = null,
+    onShowDetails: ((Song) -> Unit)? = null,
+    onDeleteSong: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -219,6 +215,9 @@ fun AlbumDetailScreen(
                     onClick = { onTrackClick(index) },
                     onAddNext = onAddNext?.let { cb -> { cb(song) } },
                     onAddToQueueEnd = onAddToQueueEnd?.let { cb -> { cb(song) } },
+                    onShare = onShare?.let { cb -> { cb(song) } },
+                    onShowDetails = onShowDetails?.let { cb -> { cb(song) } },
+                    onDeleteSong = onDeleteSong?.let { cb -> { cb(song) } },
                 )
                 if (index < tracks.lastIndex) {
                     HorizontalDivider(
@@ -241,10 +240,11 @@ private fun TrackRow(
     onClick: () -> Unit,
     onAddNext: (() -> Unit)? = null,
     onAddToQueueEnd: (() -> Unit)? = null,
+    onShare: (() -> Unit)? = null,
+    onShowDetails: (() -> Unit)? = null,
+    onDeleteSong: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    var menuExpanded by remember { mutableStateOf(false) }
-
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -274,49 +274,16 @@ private fun TrackRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        if (onAddNext != null || onAddToQueueEnd != null) {
-            Box {
-                IconButton(
-                    onClick = { menuExpanded = true },
-                    modifier = Modifier.size(40.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.MoreVert,
-                        contentDescription = "More options",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                DropdownMenu(
-                    expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false },
-                ) {
-                    if (onAddNext != null) {
-                        DropdownMenuItem(
-                            text = { Text("Play Next", style = MaterialTheme.typography.bodyMedium) },
-                            leadingIcon = {
-                                Text("▶+", style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            },
-                            onClick = { menuExpanded = false; onAddNext() },
-                        )
-                    }
-                    if (onAddToQueueEnd != null) {
-                        DropdownMenuItem(
-                            text = { Text("Add to Queue", style = MaterialTheme.typography.bodyMedium) },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.PlaylistAdd,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            },
-                            onClick = { menuExpanded = false; onAddToQueueEnd() },
-                        )
-                    }
-                }
-            }
+        if (onAddNext != null || onAddToQueueEnd != null ||
+            onShare != null || onShowDetails != null || onDeleteSong != null
+        ) {
+            SongOverflowMenu(
+                onPlayNext = onAddNext,
+                onAddToQueue = onAddToQueueEnd,
+                onShare = onShare,
+                onDetails = onShowDetails,
+                onDelete = onDeleteSong,
+            )
         }
     }
 }

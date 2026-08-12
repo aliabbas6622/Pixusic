@@ -12,6 +12,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -73,12 +74,14 @@ import com.aliab.player.ui.library.LibraryViewModel
 import com.aliab.player.ui.nowplaying.NowPlayingScreen
 import com.aliab.player.ui.queue.QueueScreen
 import com.aliab.player.ui.songs.FavoritesScreen
+import com.aliab.player.ui.songs.SongDetailsDialog
 import com.aliab.player.ui.songs.SongsScreen
+import com.aliab.player.ui.songs.rememberSongDeleteLauncher
+import com.aliab.player.ui.songs.shareSong
 import com.aliab.player.ui.playlists.PlaylistViewModel
 import com.aliab.player.ui.playlists.PlaylistsScreen
 import com.aliab.player.ui.playlists.PlaylistDetailScreen
 import com.aliab.player.model.Song
-import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ListItem
@@ -189,8 +192,31 @@ private fun LibraryShell(
         }
     }
 
+    // Wire PlayerConnection.onPause → saveQueue so resume lands at the exact pause position
+    // even when the process is killed without a track change.
+    LaunchedEffect(playbackViewModel) {
+        playbackViewModel.onPausePersist = { positionMs ->
+            val state = playbackViewModel.uiState.value
+            if (state.queue.isNotEmpty()) {
+                libraryViewModel.saveQueue(
+                    songIds = state.queue.map { it.id },
+                    index = state.currentQueueIndex,
+                    positionMs = positionMs,
+                )
+            }
+        }
+    }
+
     var showSettingsSheet by remember { mutableStateOf(false) }
     var pendingSongForPlaylist by remember { mutableStateOf<Song?>(null) }
+
+    // One delete flow + one details dialog serve every song row in the app. Delete asks the
+    // system for confirmation (MediaStore.createDeleteRequest) and then rescans the library.
+    var detailsSong by remember { mutableStateOf<Song?>(null) }
+    val deleteSong = rememberSongDeleteLauncher { deleted ->
+        libraryViewModel.refresh()
+        playbackViewModel.removeSongFromQueue(deleted.id)
+    }
 
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -288,7 +314,10 @@ private fun LibraryShell(
                                 isAscending = isAscending,
                                 onSortChanged = libraryViewModel::setSongSort,
                                 onOpenSettings = { showSettingsSheet = true },
-                                onAddToPlaylist = { pendingSongForPlaylist = it }
+                                onAddToPlaylist = { pendingSongForPlaylist = it },
+                                onShare = { song -> shareSong(context, song) },
+                                onShowDetails = { song -> detailsSong = song },
+                                onDeleteSong = { song -> deleteSong(song) },
                             )
                         }
                         LibraryDestination.Albums -> {
@@ -349,6 +378,9 @@ private fun LibraryShell(
                                 onShuffleAll = { if (favoriteSongs.isNotEmpty()) playbackViewModel.playQueue(favoriteSongs.shuffled(), 0) },
                                 onAddNext = { song -> playbackViewModel.addNext(song) },
                                 onAddToQueueEnd = { song -> playbackViewModel.addToQueueEnd(song) },
+                                onShare = { song -> shareSong(context, song) },
+                                onShowDetails = { song -> detailsSong = song },
+                                onDeleteSong = { song -> deleteSong(song) },
                             )
                         }
                     }
@@ -401,6 +433,7 @@ private fun LibraryShell(
                     onStartSleepTimer = { mins -> playbackViewModel.startSleepTimer(mins) },
                     onStartSleepTimerEndOfTrack = { playbackViewModel.startSleepTimerEndOfTrack() },
                     onCancelSleepTimer = { playbackViewModel.cancelSleepTimer() },
+                    lyricsRepository = appContainer.lyricsRepository,
                 )
             }
 
@@ -453,6 +486,9 @@ private fun LibraryShell(
                     onShuffleAll = { playbackViewModel.playQueue(tracks.shuffled(), 0) },
                     onAddNext = { song -> playbackViewModel.addNext(song) },
                     onAddToQueueEnd = { song -> playbackViewModel.addToQueueEnd(song) },
+                    onShare = { song -> shareSong(context, song) },
+                    onShowDetails = { song -> detailsSong = song },
+                    onDeleteSong = { song -> deleteSong(song) },
                 )
             }
 
@@ -474,6 +510,9 @@ private fun LibraryShell(
                     onShuffleAll = { playbackViewModel.playQueue(artistTracks.shuffled(), 0) },
                     onAddNext = { song -> playbackViewModel.addNext(song) },
                     onAddToQueueEnd = { song -> playbackViewModel.addToQueueEnd(song) },
+                    onShare = { song -> shareSong(context, song) },
+                    onShowDetails = { song -> detailsSong = song },
+                    onDeleteSong = { song -> deleteSong(song) },
                 )
             }
 
@@ -513,7 +552,7 @@ private fun LibraryShell(
                     playlist = playlist,
                     songs = playlistSongs,
                     contentPadding = innerPadding,
-                    onBack = { navController.popBackStack() },
+                    onBackClick = { navController.popBackStack() },
                     onPlayAll = { if (playlistSongs.isNotEmpty()) playbackViewModel.playQueue(playlistSongs, 0) },
                     onShuffle = { if (playlistSongs.isNotEmpty()) playbackViewModel.playQueue(playlistSongs.shuffled(), 0) },
                     onSongClick = { index -> playbackViewModel.playQueue(playlistSongs, index) },
@@ -521,10 +560,17 @@ private fun LibraryShell(
                     onAddToQueue = { song -> playbackViewModel.addToQueueEnd(song) },
                     onRemoveFromPlaylist = { song -> 
                         playlistViewModel.removeSongFromPlaylist(playlistId, song.id)
-                    }
+                    },
+                    onShare = { song -> shareSong(context, song) },
+                    onShowDetails = { song -> detailsSong = song },
+                    onDeleteSong = { song -> deleteSong(song) },
                 )
             }
         }
+    }
+
+    detailsSong?.let { song ->
+        SongDetailsDialog(song = song, onDismiss = { detailsSong = null })
     }
 
     if (showSettingsSheet) {

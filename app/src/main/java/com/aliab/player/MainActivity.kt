@@ -17,10 +17,20 @@ import com.aliab.player.ui.PlayerApp
 class MainActivity : ComponentActivity() {
     private var hasAudioPermission by mutableStateOf(false)
 
+    /** Only ask for notifications once per process, after audio access is already granted. */
+    private var notificationPermissionRequested = false
+
     private val audioPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         hasAudioPermission = granted
+        if (granted) requestNotificationPermissionIfNeeded()
+    }
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { _ ->
+        // Media playback still runs without it; the media notification is simply hidden.
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,6 +44,24 @@ class MainActivity : ComponentActivity() {
                 onRequestPermission = ::requestAudioPermission,
             )
         }
+
+        // Android 13+ blocks notifications (including media controls) until POST_NOTIFICATIONS
+        // is granted. Ask right after audio access is granted — not on top of the audio screen.
+        requestNotificationPermissionIfNeeded()
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (notificationPermissionRequested) return
+        if (!hasAudioPermission()) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionRequested = true
+            return
+        }
+        notificationPermissionRequested = true
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     override fun onResume() {

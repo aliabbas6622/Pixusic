@@ -1,5 +1,6 @@
 package com.aliab.player.ui.nowplaying
 
+import android.net.Uri
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,6 +21,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,6 +49,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +62,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aliab.player.playback.PlaybackRepeatMode
 import com.aliab.player.playback.PlaybackUiState
+import com.aliab.player.data.lyrics.LyricLine
+import com.aliab.player.data.lyrics.LyricsRepository
 import com.aliab.player.ui.artwork.AlbumArt
 import com.aliab.player.ui.formatDisplayName
 import com.aliab.player.ui.formatTime
@@ -88,6 +95,7 @@ fun NowPlayingScreen(
     onStartSleepTimer: (Int) -> Unit = {},
     onStartSleepTimerEndOfTrack: () -> Unit = {},
     onCancelSleepTimer: () -> Unit = {},
+    lyricsRepository: LyricsRepository? = null,
     modifier: Modifier = Modifier,
 ) {
     DisposableEffect(Unit) {
@@ -426,41 +434,19 @@ fun NowPlayingScreen(
                 )
             }
 
-            if (showLyricsSheet && song != null) {
-                androidx.compose.material3.ModalBottomSheet(onDismissRequest = { showLyricsSheet = false }) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(
-                            text = "Lyrics",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.padding(bottom = 16.dp),
-                        )
-                        Text(
-                            text = formatDisplayName(song.title),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            text = formatDisplayName(song.artist),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 24.dp),
-                        )
-                        Text(
-                            text = "No .lrc file found in same directory.\nPlace '${song.title}.lrc' next to the audio file for synchronized offline lyrics.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 32.dp),
-                        )
-                    }
-                }
+            if (showLyricsSheet) {
+                LyricsSheet(
+                    title = formatDisplayName(song.title),
+                    artist = formatDisplayName(song.artist),
+                    songUri = song.uri,
+                    positionMs = state.positionMs,
+                    isPlaying = state.isPlaying,
+                    lyricsRepository = lyricsRepository,
+                    onDismiss = { showLyricsSheet = false },
+                )
             }
 
-            if (showMoreSheet && song != null) {
+            if (showMoreSheet) {
                 androidx.compose.material3.ModalBottomSheet(onDismissRequest = { showMoreSheet = false }) {
                     Column(
                         modifier = Modifier
@@ -545,6 +531,7 @@ fun NowPlayingScreen(
                     }
                 }
             }
+            }
         }
     }
     }
@@ -554,4 +541,129 @@ private fun PlaybackRepeatMode.next(): PlaybackRepeatMode = when (this) {
     PlaybackRepeatMode.Off -> PlaybackRepeatMode.All
     PlaybackRepeatMode.All -> PlaybackRepeatMode.One
     PlaybackRepeatMode.One -> PlaybackRepeatMode.Off
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LyricsSheet(
+    title: String,
+    artist: String,
+    songUri: Uri,
+    positionMs: Long,
+    isPlaying: Boolean,
+    lyricsRepository: LyricsRepository?,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Lyrics", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                artist,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 24.dp),
+            )
+
+            if (lyricsRepository == null) {
+                LyricsUnavailable(reason = "Lyrics engine unavailable.")
+                return@Column
+            }
+
+            var lines by remember(songUri) { mutableStateOf<List<LyricLine>?>(null) }
+            var resolved by remember(songUri) { mutableStateOf(false) }
+
+            LaunchedEffect(songUri) {
+                lines = lyricsRepository.load(songUri)
+                resolved = true
+            }
+
+            if (!resolved) {
+                Box(modifier = Modifier.padding(vertical = 48.dp)) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                return@Column
+            }
+            val parsed = lines
+            if (parsed.isNullOrEmpty()) {
+                LyricsUnavailable(reason = "No .lrc file found in the same directory as the audio file.")
+                return@Column
+            }
+
+            SyncedLyrics(lines = parsed, positionMs = positionMs, isPlaying = isPlaying)
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+@Composable
+private fun LyricsUnavailable(reason: String) {
+    Text(
+        text = reason,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 32.dp),
+    )
+}
+
+@Composable
+private fun SyncedLyrics(
+    lines: List<LyricLine>,
+    positionMs: Long,
+    isPlaying: Boolean,
+) {
+    val listState = rememberLazyListState()
+
+    // Binary search for the last line whose timestamp has been reached. Returns -1 before the
+    // first timestamp. Computed inline (not via derivedStateOf) so it re-evaluates on every
+    // position tick — the sheet must track playback live.
+    val activeIndex = run {
+        var lo = -1
+        var hi = lines.lastIndex
+        while (lo < hi) {
+            val mid = (lo + hi + 1) / 2
+            if (lines[mid].timeMs <= positionMs) lo = mid else hi = mid - 1
+        }
+        lo
+    }
+
+    // Only re-scroll when the active line index changes — not on every position tick.
+    LaunchedEffect(activeIndex, isPlaying) {
+        if (isPlaying && activeIndex >= 0) {
+            listState.animateScrollToItem(activeIndex)
+        }
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(360.dp),
+    ) {
+        itemsIndexed(lines) { index, line ->
+            val isActive = index == activeIndex
+            Text(
+                text = line.text.ifBlank { "…" },
+                style = if (isActive) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
+                color = if (isActive) MaterialTheme.colorScheme.onSurface
+                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+            )
+        }
+    }
 }

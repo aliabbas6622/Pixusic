@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import androidx.annotation.MainThread
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -45,7 +46,61 @@ class PlayerConnection(context: Context) : AutoCloseable {
             publishState(player, refreshQueue = queueChanged)
             refreshPositionUpdates()
         }
+
+        override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
+            // Only a natural progression to the next track counts as the end of the current one.
+            // The callback also fires for timeline replacement (playQueue/setQueue), user seeks
+            // and shuffle-driven changes — none of which should trip an "end of track" timer.
+            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ||
+                reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT
+            ) {
+                onTrackChanged?.invoke()
+            }
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            // The queue's last track (repeat off) never triggers a media-item transition, only
+            // the ended state — so it must be detected here.
+            if (playbackState == Player.STATE_ENDED) {
+                onTrackChanged?.invoke()
+            }
+        }
+
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int,
+        ) {
+            // Repeat-ONE loops the same item with no transition and no ended state; the loop
+            // point surfaces as an auto-transition position discontinuity.
+            if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
+                onTrackChanged?.invoke()
+            }
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (!isPlaying) {
+                // Pause is a checkpoint: persist position now so resume lands where the user left
+                // off even if the process is killed before the next track-change. We re-read
+                // currentPosition here because the published UI snapshot may be up to 500ms stale.
+                controller?.let { c ->
+                    // When the whole queue has ended, position == duration; persisting that would
+                    // make a future restore a dead no-op at the end of the last track.
+                    val duration = c.duration
+                    val playbackEnded = c.playbackState == Player.STATE_ENDED
+                    if (!playbackEnded && (duration == C.TIME_UNSET || c.currentPosition < duration)) {
+                        onPause?.invoke(c.currentPosition.coerceAtLeast(0L))
+                    }
+                }
+            }
+        }
     }
+
+    /** Optional callback fired whenever the active media item changes. */
+    var onTrackChanged: (() -> Unit)? = null
+
+    /** Optional callback fired when the player transitions from playing → paused. */
+    var onPause: ((positionMs: Long) -> Unit)? = null
 
     private val controllerFuture = MediaController.Builder(
         appContext,

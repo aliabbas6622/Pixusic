@@ -9,11 +9,13 @@ import com.aliab.player.model.Album
 import com.aliab.player.model.Artist
 import com.aliab.player.model.Folder
 import com.aliab.player.model.Song
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Loads the MediaStore catalog once on creation and derives all library sections from it, so a
@@ -95,23 +97,46 @@ class LibraryViewModel(
         return Triple(settings.lastQueueSongIds, settings.lastQueueIndex, settings.lastQueuePositionMs)
     }
 
+    private var latestCatalog: List<Song> = emptyList()
+
     init {
         viewModelScope.launch {
-            val catalog = mediaStoreRepository.querySongs()
-            _isLoading.value = false
             settingsRepository.settings.collect { settings ->
                 _themeMode.value = settings.themeMode
                 _favoriteSongIds.value = settings.favoriteSongIds
                 _currentSort.value = settings.songSort
                 _isAscending.value = settings.songsSortAscending
-                _songs.value = catalog.sortedWith(
+                // Always re-sort the most recent catalog so a settings change can't resurrect
+                // songs deleted since the last scan.
+                _songs.value = latestCatalog.sortedWith(
                     songComparator(settings.songSort, settings.songsSortAscending),
                 )
             }
         }
-        viewModelScope.launch { _albums.value = mediaStoreRepository.queryAlbums() }
-        viewModelScope.launch { _artists.value = mediaStoreRepository.queryArtists() }
         viewModelScope.launch { _folders.value = mediaStoreRepository.queryFolders() }
+        refresh()
+    }
+
+    /**
+     * Re-scans the MediaStore catalog (e.g. after the user deletes a song) and repopulates every
+     * library section from the single query.
+     */
+    fun refresh() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            latestCatalog = mediaStoreRepository.querySongs()
+            val (albums, artists) = withContext(Dispatchers.Default) {
+                mediaStoreRepository.albumsFrom(latestCatalog) to
+                    mediaStoreRepository.artistsFrom(latestCatalog)
+            }
+            _albums.value = albums
+            _artists.value = artists
+            val settings = settingsRepository.settings.first()
+            _songs.value = latestCatalog.sortedWith(
+                songComparator(settings.songSort, settings.songsSortAscending),
+            )
+            _isLoading.value = false
+        }
     }
 
     /** Every track credited to an artist, from the already-loaded catalog. */

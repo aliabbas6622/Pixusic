@@ -20,14 +20,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Sort
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,9 +61,15 @@ fun SongsScreen(
     onSortChanged: (com.aliab.player.data.settings.SongSort, Boolean) -> Unit = { _, _ -> },
     onOpenSettings: () -> Unit = {},
     onAddToPlaylist: ((Song) -> Unit)? = null,
+    onShare: (Song) -> Unit = {},
+    onShowDetails: (Song) -> Unit = {},
+    onDeleteSong: (Song) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    // O(1) lookup from song id to its index in the full list — avoids an O(n) indexOf per row
+    // (which made fast scrolling of large libraries O(n²) overall).
+    val songIndexById = remember(songs) { songs.withIndex().associate { it.value.id to it.index } }
     val filteredSongs = remember(songs, searchQuery) {
         if (searchQuery.isBlank()) {
             songs
@@ -114,7 +116,7 @@ fun SongsScreen(
                 modifier = Modifier.padding(bottom = 2.dp),
             ) {
                 Icon(
-                    imageVector = androidx.compose.material.icons.Icons.Outlined.Settings,
+                    imageVector = Icons.Outlined.Settings,
                     contentDescription = "Settings",
                     tint = MaterialTheme.colorScheme.onSurface,
                 )
@@ -237,13 +239,16 @@ fun SongsScreen(
             else -> {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     itemsIndexed(filteredSongs, key = { _, song -> song.id }) { index, song ->
-                        val originalIndex = songs.indexOf(song).let { if (it >= 0) it else index }
+                        val originalIndex = songIndexById[song.id] ?: index
                         SongRow(
                             song = song,
                             onClick = { onSongClick(originalIndex) },
                             onAddNext = { onAddNext(song) },
                             onAddToQueueEnd = { onAddToQueueEnd(song) },
                             onAddToPlaylist = if (onAddToPlaylist != null) { { onAddToPlaylist(song) } } else null,
+                            onShare = { onShare(song) },
+                            onShowDetails = { onShowDetails(song) },
+                            onDeleteSong = { onDeleteSong(song) },
                         )
                         if (index < filteredSongs.lastIndex) {
                             HorizontalDivider(
@@ -267,10 +272,11 @@ private fun SongRow(
     onAddNext: () -> Unit = {},
     onAddToQueueEnd: () -> Unit = {},
     onAddToPlaylist: (() -> Unit)? = null,
+    onShare: () -> Unit = {},
+    onShowDetails: () -> Unit = {},
+    onDeleteSong: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var menuExpanded by remember { mutableStateOf(false) }
-
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -310,67 +316,14 @@ private fun SongRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Box {
-            IconButton(
-                onClick = { menuExpanded = true },
-                modifier = Modifier.size(40.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.MoreVert,
-                    contentDescription = "More options",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false },
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Play Next", style = MaterialTheme.typography.bodyMedium) },
-                    leadingIcon = {
-                        Text("▶+", style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    },
-                    onClick = {
-                        menuExpanded = false
-                        onAddNext()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text("Add to Queue", style = MaterialTheme.typography.bodyMedium) },
-                    leadingIcon = {
-                        Icon(
-                            Icons.AutoMirrored.Filled.PlaylistAdd,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    onClick = {
-                        menuExpanded = false
-                        onAddToQueueEnd()
-                    },
-                )
-                if (onAddToPlaylist != null) {
-                    DropdownMenuItem(
-                        text = { Text("Add to Playlist", style = MaterialTheme.typography.bodyMedium) },
-                        leadingIcon = {
-                            Icon(
-                                Icons.AutoMirrored.Outlined.QueueMusic,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        },
-                        onClick = {
-                            menuExpanded = false
-                            onAddToPlaylist()
-                        },
-                    )
-                }
-            }
-        }
+        SongOverflowMenu(
+            onPlayNext = onAddNext,
+            onAddToQueue = onAddToQueueEnd,
+            onAddToPlaylist = onAddToPlaylist,
+            onShare = onShare,
+            onDetails = onShowDetails,
+            onDelete = onDeleteSong,
+        )
     }
 }
 

@@ -33,32 +33,31 @@ class MediaStoreRepository(context: Context) {
         sortOrder = TITLE_SORT,
     )
 
-    /** Albums grouped from the catalog with track counts; works on every supported API level. */
-    suspend fun queryAlbums(): List<Album> = withContext(Dispatchers.IO) {
-        querySongsCore(IS_MUSIC_SELECTION, TITLE_SORT, arrayOf(MIN_DURATION_MS.toString()))
-            .groupBy { it.albumId.coerceAtLeast(0L) }
-            .map { (albumId, songs) ->
-                val first = songs.first()
+    /**
+     * Albums grouped from an already-loaded song catalog. Deriving from the single [querySongs]
+     * result avoids re-scanning MediaStore for every library tab.
+     */
+    fun albumsFrom(songs: List<Song>): List<Album> =
+        songs.groupBy { it.albumId.coerceAtLeast(0L) }
+            .map { (albumId, tracks) ->
+                val first = tracks.first()
                 Album(
                     id = albumId,
                     name = first.album,
                     artist = first.artist,
-                    year = songs.mapNotNull { it.year }.maxOrNull(),
-                    songCount = songs.size,
+                    year = tracks.mapNotNull { it.year }.maxOrNull(),
+                    songCount = tracks.size,
                 )
             }
             .filterNot { isExcludedName(it.name) }
             .sortedBy { it.name.lowercase() }
-    }
 
-    /** Artists grouped from the catalog with track counts. */
-    suspend fun queryArtists(): List<Artist> = withContext(Dispatchers.IO) {
-        querySongsCore(IS_MUSIC_SELECTION, TITLE_SORT, arrayOf(MIN_DURATION_MS.toString()))
-            .groupBy { it.artist }
-            .map { (artist, songs) -> Artist(name = artist, songCount = songs.size) }
+    /** Artists grouped from an already-loaded song catalog. */
+    fun artistsFrom(songs: List<Song>): List<Artist> =
+        songs.groupBy { it.artist }
+            .map { (artist, tracks) -> Artist(name = artist, songCount = tracks.size) }
             .filterNot { isExcludedName(it.name) }
             .sortedBy { it.name.lowercase() }
-    }
 
     /** Top-level folders that contain music, with track counts, from MediaStore relative paths. */
     suspend fun queryFolders(): List<Folder> = withContext(Dispatchers.IO) {

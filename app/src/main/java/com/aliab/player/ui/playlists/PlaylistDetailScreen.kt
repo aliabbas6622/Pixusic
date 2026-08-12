@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.outlined.MusicNote
@@ -16,12 +15,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.aliab.player.data.playlists.PlaylistWithSongCount
 import com.aliab.player.model.Song
+import com.aliab.player.ui.artwork.AlbumArt
+import com.aliab.player.ui.songs.SongOverflowMenu
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,6 +35,9 @@ fun PlaylistDetailScreen(
     onPlayNext: (Song) -> Unit,
     onAddToQueue: (Song) -> Unit,
     onRemoveFromPlaylist: (Song) -> Unit,
+    onShare: ((Song) -> Unit)? = null,
+    onShowDetails: ((Song) -> Unit)? = null,
+    onDeleteSong: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     if (playlist == null) {
@@ -118,7 +120,6 @@ fun PlaylistDetailScreen(
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     itemsIndexed(songs) { index, song ->
-                        var showMenu by remember { mutableStateOf(false) }
                         ListItem(
                             headlineContent = {
                                 Text(
@@ -135,62 +136,28 @@ fun PlaylistDetailScreen(
                                 )
                             },
                             leadingContent = {
-                                if (song.artworkUri != null) {
-                                    AsyncImage(
-                                        model = song.artworkUri,
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                    )
-                                } else {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(RoundedCornerShape(4.dp)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.MusicNote,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
+                                AlbumArt(
+                                    albumId = song.albumId,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    shape = RoundedCornerShape(4.dp),
+                                )
                             },
                             trailingContent = {
-                                Box {
-                                    IconButton(onClick = { showMenu = true }) {
-                                        Icon(Icons.Default.MoreVert, contentDescription = "More options")
-                                    }
-                                    DropdownMenu(
-                                        expanded = showMenu,
-                                        onDismissRequest = { showMenu = false }
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Play Next") },
-                                            onClick = {
-                                                showMenu = false
-                                                onPlayNext(song)
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Add to Queue") },
-                                            onClick = {
-                                                showMenu = false
-                                                onAddToQueue(song)
-                                            }
-                                        )
+                                SongOverflowMenu(
+                                    onPlayNext = { onPlayNext(song) },
+                                    onAddToQueue = { onAddToQueue(song) },
+                                    onShare = onShare?.let { cb -> { cb(song) } },
+                                    onDetails = onShowDetails?.let { cb -> { cb(song) } },
+                                    onDelete = onDeleteSong?.let { cb -> { cb(song) } },
+                                    extraItems = {
                                         DropdownMenuItem(
                                             text = { Text("Remove from Playlist") },
-                                            onClick = {
-                                                showMenu = false
-                                                onRemoveFromPlaylist(song)
-                                            }
+                                            onClick = { onRemoveFromPlaylist(song) }
                                         )
-                                    }
-                                }
+                                    },
+                                )
                             },
                             modifier = Modifier.clickable { onSongClick(index) }
                         )

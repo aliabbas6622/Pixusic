@@ -18,6 +18,22 @@ class PlaybackViewModel(private val connection: PlayerConnection) : ViewModel() 
 
     val uiState: StateFlow<PlaybackUiState> = connection.uiState
 
+    /**
+     * Called by [PlayerConnection] on pause with the exact current position. The host wires this
+     * to whatever persistence layer owns the queue snapshot — we don't import that here so this
+     * class stays free of the data layer.
+     */
+    var onPausePersist: ((positionMs: Long) -> Unit)? = null
+
+    init {
+        connection.onTrackChanged = ::onTrackChanged
+        connection.onPause = { positionMs -> onPausePersist?.invoke(positionMs) }
+    }
+
+    private fun onTrackChanged() {
+        checkEndOfTrackSleepTimer()
+    }
+
     fun playQueue(songs: List<Song>, startIndex: Int) = connection.playQueue(songs, startIndex)
 
     fun setQueue(songs: List<Song>, startIndex: Int = 0, positionMs: Long = 0L) = connection.setQueue(songs, startIndex, positionMs)
@@ -45,6 +61,17 @@ class PlaybackViewModel(private val connection: PlayerConnection) : ViewModel() 
     fun moveQueueItem(fromIndex: Int, toIndex: Int) = connection.moveQueueItem(fromIndex, toIndex)
 
     fun removeQueueItem(index: Int) = connection.removeQueueItem(index)
+
+    /** Drops every occurrence of [songId] from the live queue (e.g. after the file was deleted). */
+    fun removeSongFromQueue(songId: Long) {
+        val state = connection.uiState.value
+        val indices = state.queue.mapIndexedNotNull { index, song ->
+            if (song.id == songId) index else null
+        }
+        // Remove from the end so earlier indices stay valid. If the current item is removed,
+        // Media3 advances to the next track automatically.
+        indices.sortedDescending().forEach { connection.removeQueueItem(it) }
+    }
 
     fun clearQueue() = connection.clearQueue()
 
