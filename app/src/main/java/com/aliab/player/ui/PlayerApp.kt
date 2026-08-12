@@ -20,14 +20,19 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Album
+import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -37,7 +42,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -65,13 +72,28 @@ import com.aliab.player.ui.folders.FoldersScreen
 import com.aliab.player.ui.library.LibraryViewModel
 import com.aliab.player.ui.nowplaying.NowPlayingScreen
 import com.aliab.player.ui.queue.QueueScreen
+import com.aliab.player.ui.songs.FavoritesScreen
 import com.aliab.player.ui.songs.SongsScreen
+import com.aliab.player.ui.playlists.PlaylistViewModel
+import com.aliab.player.ui.playlists.PlaylistsScreen
+import com.aliab.player.ui.playlists.PlaylistDetailScreen
+import com.aliab.player.model.Song
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.AlertDialog
 
 private const val NOW_PLAYING_ROUTE = "nowplaying"
 private const val QUEUE_ROUTE = "queue"
 private const val ALBUM_ROUTE = "album"
 private const val ARTIST_ROUTE = "artist"
 private const val FOLDER_ROUTE = "folder"
+private const val PLAYLIST_ROUTE = "playlist"
 
 /** Fast transition durations (160ms for ultra-responsive feel). */
 private const val NAV_TRANSITION_DURATION_MS = 160
@@ -82,6 +104,8 @@ enum class LibraryDestination(val route: String, val label: String, val icon: Im
     Albums("albums", "Albums", Icons.Outlined.Album),
     Artists("artists", "Artists", Icons.Outlined.Person),
     Folders("folders", "Folders", Icons.Outlined.Folder),
+    Playlists("playlists", "Playlists", Icons.AutoMirrored.Outlined.QueueMusic),
+    Favorites("favorites", "Favorites", Icons.Outlined.Favorite),
 
     ;
 
@@ -94,16 +118,24 @@ enum class LibraryDestination(val route: String, val label: String, val icon: Im
 /**
  * Root UI for the player with ultra-fast snappy screen transitions (160ms).
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerApp(
     audioPermissionGranted: Boolean,
     onRequestPermission: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    PlayerTheme {
+    val context = LocalContext.current
+    val appContainer = (context.applicationContext as PlayerApplication).appContainer
+    val libraryViewModel: LibraryViewModel = viewModel {
+        LibraryViewModel(appContainer.mediaStoreRepository, appContainer.settingsRepository)
+    }
+    val themeMode by libraryViewModel.themeMode.collectAsStateWithLifecycle()
+
+    PlayerTheme(themeMode = themeMode) {
         Surface(modifier = modifier.fillMaxSize()) {
             if (audioPermissionGranted) {
-                LibraryShell()
+                LibraryShell(libraryViewModel = libraryViewModel)
             } else {
                 AudioPermissionRequired(onRequestPermission = onRequestPermission)
             }
@@ -111,18 +143,54 @@ fun PlayerApp(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LibraryShell(modifier: Modifier = Modifier) {
+private fun LibraryShell(
+    libraryViewModel: LibraryViewModel,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val appContainer = (context.applicationContext as PlayerApplication).appContainer
-    val libraryViewModel: LibraryViewModel = viewModel {
-        LibraryViewModel(appContainer.mediaStoreRepository, appContainer.settingsRepository)
-    }
     val playbackViewModel: PlaybackViewModel = viewModel {
         PlaybackViewModel(PlayerConnection(context.applicationContext))
     }
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
     val libraryLoading by libraryViewModel.isLoading.collectAsStateWithLifecycle()
+
+    val playlistViewModel: PlaylistViewModel = viewModel(
+        factory = PlaylistViewModel.Factory(appContainer.playlistRepository)
+    )
+
+    val allSongs by libraryViewModel.songs.collectAsStateWithLifecycle()
+    var hasRestoredQueue by remember { mutableStateOf(false) }
+
+    LaunchedEffect(allSongs) {
+        if (!hasRestoredQueue && allSongs.isNotEmpty()) {
+            hasRestoredQueue = true
+            val state = libraryViewModel.getLastQueueState()
+            if (state != null) {
+                val (lastSongIds, lastIndex, lastPos) = state
+                val songMap = allSongs.associateBy { it.id }
+                val queueSongs = lastSongIds.mapNotNull { songMap[it] }
+                if (queueSongs.isNotEmpty()) {
+                    playbackViewModel.setQueue(queueSongs, lastIndex, lastPos)
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(playbackState.queue, playbackState.currentQueueIndex) {
+        if (playbackState.queue.isNotEmpty()) {
+            libraryViewModel.saveQueue(
+                songIds = playbackState.queue.map { it.id },
+                index = playbackState.currentQueueIndex,
+                positionMs = playbackState.positionMs,
+            )
+        }
+    }
+
+    var showSettingsSheet by remember { mutableStateOf(false) }
+    var pendingSongForPlaylist by remember { mutableStateOf<Song?>(null) }
 
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -132,7 +200,8 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
         currentRoute == QUEUE_ROUTE ||
         currentRoute?.startsWith("$ALBUM_ROUTE/") == true ||
         currentRoute?.startsWith("$ARTIST_ROUTE/") == true ||
-        currentRoute?.startsWith("$FOLDER_ROUTE/") == true
+        currentRoute?.startsWith("$FOLDER_ROUTE/") == true ||
+        currentRoute?.startsWith("$PLAYLIST_ROUTE/") == true
 
     Scaffold(
         modifier = modifier,
@@ -218,6 +287,8 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
                                 currentSort = currentSort,
                                 isAscending = isAscending,
                                 onSortChanged = libraryViewModel::setSongSort,
+                                onOpenSettings = { showSettingsSheet = true },
+                                onAddToPlaylist = { pendingSongForPlaylist = it }
                             )
                         }
                         LibraryDestination.Albums -> {
@@ -251,6 +322,33 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
                                 onFolderClick = { folder ->
                                     navController.navigate("$FOLDER_ROUTE/${Uri.encode(folder.path)}")
                                 },
+                            )
+                        }
+                        LibraryDestination.Playlists -> {
+                            val playlists by playlistViewModel.playlists.collectAsStateWithLifecycle()
+                            PlaylistsScreen(
+                                playlists = playlists,
+                                contentPadding = innerPadding,
+                                onPlaylistClick = { id -> navController.navigate("$PLAYLIST_ROUTE/$id") },
+                                onCreatePlaylist = playlistViewModel::createPlaylist,
+                                onRenamePlaylist = playlistViewModel::renamePlaylist,
+                                onDeletePlaylist = playlistViewModel::deletePlaylist,
+                            )
+                        }
+                        LibraryDestination.Favorites -> {
+                            val allSongs by libraryViewModel.songs.collectAsStateWithLifecycle()
+                            val favoriteSongIds by libraryViewModel.favoriteSongIds.collectAsStateWithLifecycle()
+                            val favoriteSongs = remember(allSongs, favoriteSongIds) {
+                                allSongs.filter { it.id in favoriteSongIds }
+                            }
+                            FavoritesScreen(
+                                favorites = favoriteSongs,
+                                contentPadding = innerPadding,
+                                onSongClick = { index -> playbackViewModel.playQueue(favoriteSongs, index) },
+                                onPlayAll = { if (favoriteSongs.isNotEmpty()) playbackViewModel.playQueue(favoriteSongs, 0) },
+                                onShuffleAll = { if (favoriteSongs.isNotEmpty()) playbackViewModel.playQueue(favoriteSongs.shuffled(), 0) },
+                                onAddNext = { song -> playbackViewModel.addNext(song) },
+                                onAddToQueueEnd = { song -> playbackViewModel.addToQueueEnd(song) },
                             )
                         }
                     }
@@ -343,6 +441,10 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
                     tracks = tracks,
                     onBack = { navController.popBackStack() },
                     onTrackClick = { index -> playbackViewModel.playQueue(tracks, index) },
+                    onPlayAll = { playbackViewModel.playQueue(tracks, 0) },
+                    onShuffleAll = { playbackViewModel.playQueue(tracks.shuffled(), 0) },
+                    onAddNext = { song -> playbackViewModel.addNext(song) },
+                    onAddToQueueEnd = { song -> playbackViewModel.addToQueueEnd(song) },
                 )
             }
 
@@ -360,6 +462,10 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
                     tracks = artistTracks,
                     onBack = { navController.popBackStack() },
                     onTrackClick = { index -> playbackViewModel.playQueue(artistTracks, index) },
+                    onPlayAll = { playbackViewModel.playQueue(artistTracks, 0) },
+                    onShuffleAll = { playbackViewModel.playQueue(artistTracks.shuffled(), 0) },
+                    onAddNext = { song -> playbackViewModel.addNext(song) },
+                    onAddToQueueEnd = { song -> playbackViewModel.addToQueueEnd(song) },
                 )
             }
 
@@ -379,6 +485,127 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
                     onTrackClick = { index -> playbackViewModel.playQueue(folderSongs, index) },
                 )
             }
+
+            composable(
+                route = "$PLAYLIST_ROUTE/{playlistId}",
+                arguments = listOf(navArgument("playlistId") { type = NavType.LongType }),
+            ) { entry ->
+                val playlistId = entry.arguments?.getLong("playlistId") ?: -1L
+                val playlists by playlistViewModel.playlists.collectAsStateWithLifecycle()
+                val playlist = playlists.find { it.playlist.id == playlistId }
+                
+                val allSongs by libraryViewModel.songs.collectAsStateWithLifecycle()
+                var playlistSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+                
+                LaunchedEffect(playlistId, allSongs, playlists) {
+                    playlistSongs = playlistViewModel.getSongsForPlaylist(playlistId, allSongs)
+                }
+
+                PlaylistDetailScreen(
+                    playlist = playlist,
+                    songs = playlistSongs,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() },
+                    onPlayAll = { if (playlistSongs.isNotEmpty()) playbackViewModel.playQueue(playlistSongs, 0) },
+                    onShuffle = { if (playlistSongs.isNotEmpty()) playbackViewModel.playQueue(playlistSongs.shuffled(), 0) },
+                    onSongClick = { index -> playbackViewModel.playQueue(playlistSongs, index) },
+                    onPlayNext = { song -> playbackViewModel.addNext(song) },
+                    onAddToQueue = { song -> playbackViewModel.addToQueueEnd(song) },
+                    onRemoveFromPlaylist = { song -> 
+                        playlistViewModel.removeSongFromPlaylist(playlistId, song.id)
+                    }
+                )
+            }
+        }
+    }
+
+    if (showSettingsSheet) {
+        val themeMode by libraryViewModel.themeMode.collectAsStateWithLifecycle()
+        ModalBottomSheet(onDismissRequest = { showSettingsSheet = false }) {
+            Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+                Text(
+                    text = "Appearance",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    com.aliab.player.data.settings.ThemeMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = themeMode == mode,
+                            onClick = { libraryViewModel.setTheme(mode) },
+                            label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                        )
+                    }
+                }
+                androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
+    }
+
+    if (pendingSongForPlaylist != null) {
+        var showNewPlaylistDialog by remember { mutableStateOf(false) }
+        var newPlaylistName by remember { mutableStateOf("") }
+        
+        ModalBottomSheet(onDismissRequest = { pendingSongForPlaylist = null }) {
+            Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+                Text(
+                    text = "Add to Playlist",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                val playlists by playlistViewModel.playlists.collectAsStateWithLifecycle()
+                
+                ListItem(
+                    headlineContent = { Text("New Playlist", color = MaterialTheme.colorScheme.primary) },
+                    leadingContent = { Icon(Icons.AutoMirrored.Outlined.QueueMusic, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                    modifier = Modifier.clickable { showNewPlaylistDialog = true }
+                )
+                
+                LazyColumn {
+                    items(playlists) { playlistItem ->
+                        ListItem(
+                            headlineContent = { Text(playlistItem.playlist.name) },
+                            modifier = Modifier.clickable {
+                                playlistViewModel.addSongToPlaylist(playlistItem.playlist.id, pendingSongForPlaylist!!.id)
+                                pendingSongForPlaylist = null
+                            }
+                        )
+                    }
+                }
+                androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
+        
+        if (showNewPlaylistDialog) {
+            AlertDialog(
+                onDismissRequest = { showNewPlaylistDialog = false },
+                title = { Text("New Playlist") },
+                text = {
+                    OutlinedTextField(
+                        value = newPlaylistName,
+                        onValueChange = { newPlaylistName = it },
+                        singleLine = true,
+                        label = { Text("Playlist Name") }
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            playlistViewModel.createPlaylist(newPlaylistName)
+                            showNewPlaylistDialog = false
+                        }
+                    ) {
+                        Text("Create")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showNewPlaylistDialog = false }) { Text("Cancel") }
+                }
+            )
         }
     }
 }

@@ -12,6 +12,7 @@ import com.aliab.player.model.Song
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -23,6 +24,9 @@ class LibraryViewModel(
     private val mediaStoreRepository: MediaStoreRepository,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
+
+    private val _themeMode = MutableStateFlow(com.aliab.player.data.settings.ThemeMode.SYSTEM)
+    val themeMode: StateFlow<com.aliab.player.data.settings.ThemeMode> = _themeMode.asStateFlow()
 
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
     val songs: StateFlow<List<Song>> = _songs.asStateFlow()
@@ -73,11 +77,30 @@ class LibraryViewModel(
         }
     }
 
+    fun setTheme(mode: com.aliab.player.data.settings.ThemeMode) {
+        viewModelScope.launch {
+            settingsRepository.setThemeMode(mode)
+        }
+    }
+
+    fun saveQueue(songIds: List<Long>, index: Int, positionMs: Long) {
+        viewModelScope.launch {
+            settingsRepository.saveLastQueue(songIds, index, positionMs)
+        }
+    }
+
+    suspend fun getLastQueueState(): Triple<List<Long>, Int, Long>? {
+        val settings = settingsRepository.settings.first()
+        if (!settings.restorePlaybackOnLaunch || settings.lastQueueSongIds.isEmpty()) return null
+        return Triple(settings.lastQueueSongIds, settings.lastQueueIndex, settings.lastQueuePositionMs)
+    }
+
     init {
         viewModelScope.launch {
             val catalog = mediaStoreRepository.querySongs()
             _isLoading.value = false
             settingsRepository.settings.collect { settings ->
+                _themeMode.value = settings.themeMode
                 _favoriteSongIds.value = settings.favoriteSongIds
                 _currentSort.value = settings.songSort
                 _isAscending.value = settings.songsSortAscending

@@ -6,7 +6,10 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
@@ -43,6 +46,9 @@ data class AppSettings(
 	val songsSortAscending: Boolean = true,
 	val restorePlaybackOnLaunch: Boolean = true,
 	val favoriteSongIds: Set<Long> = emptySet(),
+	val lastQueueSongIds: List<Long> = emptyList(),
+	val lastQueueIndex: Int = 0,
+	val lastQueuePositionMs: Long = 0L,
 )
 
 /**
@@ -100,6 +106,22 @@ class SettingsRepository(context: Context) {
 		}
 	}
 
+	suspend fun saveLastQueue(songIds: List<Long>, currentIndex: Int, positionMs: Long) {
+		dataStore.edit { prefs ->
+			prefs[Keys.lastQueueSongIds] = songIds.map { it.toString() }.toSet()
+			prefs[Keys.lastQueueIndex] = currentIndex
+			prefs[Keys.lastQueuePositionMs] = positionMs
+		}
+	}
+
+	suspend fun clearLastQueue() {
+		dataStore.edit { prefs ->
+			prefs.remove(Keys.lastQueueSongIds)
+			prefs.remove(Keys.lastQueueIndex)
+			prefs.remove(Keys.lastQueuePositionMs)
+		}
+	}
+
 	private fun toAppSettings(preferences: Preferences): AppSettings = AppSettings(
 		themeMode = preferences[Keys.themeMode].toThemeMode(),
 		useDynamicColor = preferences[Keys.dynamicColorEnabled] ?: true,
@@ -107,6 +129,9 @@ class SettingsRepository(context: Context) {
 		songsSortAscending = preferences[Keys.songsSortAscending] ?: true,
 		restorePlaybackOnLaunch = preferences[Keys.restorePlaybackOnLaunch] ?: true,
 		favoriteSongIds = (preferences[Keys.favoriteSongIds] ?: emptySet()).mapNotNull { it.toLongOrNull() }.toSet(),
+		lastQueueSongIds = (preferences[Keys.lastQueueSongIds] ?: emptySet()).mapNotNull { it.toLongOrNull() },
+		lastQueueIndex = preferences[Keys.lastQueueIndex] ?: 0,
+		lastQueuePositionMs = preferences[Keys.lastQueuePositionMs] ?: 0L,
 	)
 
 	private object Keys {
@@ -115,7 +140,10 @@ class SettingsRepository(context: Context) {
 		val songSort = stringPreferencesKey("song_sort")
 		val songsSortAscending = booleanPreferencesKey("songs_sort_ascending")
 		val restorePlaybackOnLaunch = booleanPreferencesKey("restore_playback_on_launch")
-		val favoriteSongIds = androidx.datastore.preferences.core.stringSetPreferencesKey("favorite_song_ids")
+		val favoriteSongIds = stringSetPreferencesKey("favorite_song_ids")
+		val lastQueueSongIds = stringSetPreferencesKey("last_queue_song_ids")
+		val lastQueueIndex = intPreferencesKey("last_queue_index")
+		val lastQueuePositionMs = longPreferencesKey("last_queue_position_ms")
 	}
 }
 

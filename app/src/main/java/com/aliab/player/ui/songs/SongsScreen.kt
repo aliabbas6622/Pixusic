@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
@@ -62,6 +63,8 @@ fun SongsScreen(
     currentSort: com.aliab.player.data.settings.SongSort = com.aliab.player.data.settings.SongSort.TITLE,
     isAscending: Boolean = true,
     onSortChanged: (com.aliab.player.data.settings.SongSort, Boolean) -> Unit = { _, _ -> },
+    onOpenSettings: () -> Unit = {},
+    onAddToPlaylist: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -105,6 +108,16 @@ fun SongsScreen(
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
+            }
+            IconButton(
+                onClick = onOpenSettings,
+                modifier = Modifier.padding(bottom = 2.dp),
+            ) {
+                Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Outlined.Settings,
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
             }
             if (songs.isNotEmpty()) {
                 IconButton(
@@ -230,6 +243,7 @@ fun SongsScreen(
                             onClick = { onSongClick(originalIndex) },
                             onAddNext = { onAddNext(song) },
                             onAddToQueueEnd = { onAddToQueueEnd(song) },
+                            onAddToPlaylist = if (onAddToPlaylist != null) { { onAddToPlaylist(song) } } else null,
                         )
                         if (index < filteredSongs.lastIndex) {
                             HorizontalDivider(
@@ -252,6 +266,7 @@ private fun SongRow(
     onClick: () -> Unit,
     onAddNext: () -> Unit = {},
     onAddToQueueEnd: () -> Unit = {},
+    onAddToPlaylist: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -337,6 +352,23 @@ private fun SongRow(
                         onAddToQueueEnd()
                     },
                 )
+                if (onAddToPlaylist != null) {
+                    DropdownMenuItem(
+                        text = { Text("Add to Playlist", style = MaterialTheme.typography.bodyMedium) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.AutoMirrored.Outlined.QueueMusic,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onAddToPlaylist()
+                        },
+                    )
+                }
             }
         }
     }

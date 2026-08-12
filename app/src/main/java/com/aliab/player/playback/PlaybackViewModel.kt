@@ -14,6 +14,8 @@ class PlaybackViewModel(private val connection: PlayerConnection) : ViewModel() 
 
     fun playQueue(songs: List<Song>, startIndex: Int) = connection.playQueue(songs, startIndex)
 
+    fun setQueue(songs: List<Song>, startIndex: Int = 0, positionMs: Long = 0L) = connection.setQueue(songs, startIndex, positionMs)
+
     fun togglePlayPause() = connection.togglePlayPause()
 
     fun skipToNext() = connection.skipToNext()

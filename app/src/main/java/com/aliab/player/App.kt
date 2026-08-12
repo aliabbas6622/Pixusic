@@ -30,4 +30,7 @@ class PlayerApplication : Application() {
 class AppContainer(context: Context) {
 	val settingsRepository = SettingsRepository(context)
 	val mediaStoreRepository = MediaStoreRepository(context)
+
+	private val playlistDatabase = com.aliab.player.data.playlists.PlaylistDatabase.getInstance(context)
+	val playlistRepository = com.aliab.player.data.playlists.PlaylistRepository(playlistDatabase.playlistDao())
 }

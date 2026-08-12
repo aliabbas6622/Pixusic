@@ -19,12 +19,25 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Shuffle
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -33,10 +46,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aliab.player.model.Song
 import com.aliab.player.ui.artwork.AlbumArt
+import com.aliab.player.ui.formatDisplayName
 import com.aliab.player.ui.formatTime
 
 /**
- * Album detail: centred artwork, album/artist meta, then track list.
+ * Album detail: centred artwork, album/artist meta, Play All / Shuffle, then track list.
+ * Each track row has a ⋮ overflow with Play Next / Add to Queue.
  */
 @Composable
 fun AlbumDetailScreen(
@@ -44,6 +59,10 @@ fun AlbumDetailScreen(
     tracks: List<Song>,
     onBack: () -> Unit,
     onTrackClick: (Int) -> Unit,
+    onPlayAll: (() -> Unit)? = null,
+    onShuffleAll: (() -> Unit)? = null,
+    onAddNext: ((Song) -> Unit)? = null,
+    onAddToQueueEnd: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -63,7 +82,7 @@ fun AlbumDetailScreen(
         }
 
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            // Header: back + label + artwork + meta
+            // Header: back + label + artwork + meta + action buttons
             item {
                 Column(
                     modifier = Modifier
@@ -99,29 +118,29 @@ fun AlbumDetailScreen(
                     AlbumArt(
                         albumId = albumId,
                         modifier = Modifier
-                            .widthIn(max = 260.dp)
+                            .widthIn(max = 240.dp)
                             .fillMaxWidth()
                             .aspectRatio(1f)
                             .shadow(
-                                elevation = 16.dp,
-                                shape = RoundedCornerShape(18.dp),
-                                ambientColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.10f),
-                                spotColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.18f),
+                                elevation = 20.dp,
+                                shape = RoundedCornerShape(20.dp),
+                                ambientColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f),
+                                spotColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.20f),
                             ),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(20.dp),
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Text(
-                        text = com.aliab.player.ui.formatDisplayName(album),
+                        text = formatDisplayName(album),
                         style = MaterialTheme.typography.headlineSmall,
                         textAlign = TextAlign.Center,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = com.aliab.player.ui.formatDisplayName(tracks.first().artist),
+                        text = formatDisplayName(tracks.first().artist),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -134,7 +153,56 @@ fun AlbumDetailScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp),
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Action buttons row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Button(
+                            onClick = { onPlayAll?.invoke() },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.onSurface,
+                                contentColor = MaterialTheme.colorScheme.surface,
+                            ),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(modifier = Modifier.size(6.dp))
+                            Text("Play All", style = MaterialTheme.typography.labelLarge)
+                        }
+                        OutlinedButton(
+                            onClick = { onShuffleAll?.invoke() },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                            ),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Shuffle,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Spacer(modifier = Modifier.size(6.dp))
+                            Text(
+                                "Shuffle",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
                     HorizontalDivider(
                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                         thickness = 0.5.dp,
@@ -149,6 +217,8 @@ fun AlbumDetailScreen(
                     title = song.title,
                     durationMs = song.durationMs,
                     onClick = { onTrackClick(index) },
+                    onAddNext = onAddNext?.let { cb -> { cb(song) } },
+                    onAddToQueueEnd = onAddToQueueEnd?.let { cb -> { cb(song) } },
                 )
                 if (index < tracks.lastIndex) {
                     HorizontalDivider(
@@ -169,14 +239,18 @@ private fun TrackRow(
     title: String,
     durationMs: Long,
     onClick: () -> Unit,
+    onAddNext: (() -> Unit)? = null,
+    onAddToQueueEnd: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 52.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 8.dp),
+            .padding(start = 24.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -186,7 +260,7 @@ private fun TrackRow(
             modifier = Modifier.widthIn(min = 32.dp),
         )
         Text(
-            text = title,
+            text = formatDisplayName(title),
             style = MaterialTheme.typography.bodyLarge,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -199,5 +273,50 @@ private fun TrackRow(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        if (onAddNext != null || onAddToQueueEnd != null) {
+            Box {
+                IconButton(
+                    onClick = { menuExpanded = true },
+                    modifier = Modifier.size(40.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.MoreVert,
+                        contentDescription = "More options",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                ) {
+                    if (onAddNext != null) {
+                        DropdownMenuItem(
+                            text = { Text("Play Next", style = MaterialTheme.typography.bodyMedium) },
+                            leadingIcon = {
+                                Text("▶+", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            },
+                            onClick = { menuExpanded = false; onAddNext() },
+                        )
+                    }
+                    if (onAddToQueueEnd != null) {
+                        DropdownMenuItem(
+                            text = { Text("Add to Queue", style = MaterialTheme.typography.bodyMedium) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.PlaylistAdd,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            onClick = { menuExpanded = false; onAddToQueueEnd() },
+                        )
+                    }
+                }
+            }
+        }
     }
 }
