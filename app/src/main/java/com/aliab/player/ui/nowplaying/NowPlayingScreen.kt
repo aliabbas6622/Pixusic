@@ -2,6 +2,7 @@ package com.aliab.player.ui.nowplaying
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +17,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -75,6 +79,7 @@ fun NowPlayingScreen(
     onShuffleChanged: (Boolean) -> Unit,
     onRepeatChanged: (PlaybackRepeatMode) -> Unit,
     onPositionUpdatesEnabled: (Boolean) -> Unit,
+    onOpenQueue: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     DisposableEffect(Unit) {
@@ -82,7 +87,11 @@ fun NowPlayingScreen(
         onDispose { onPositionUpdatesEnabled(false) }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing),
+    ) {
         val song = state.currentSong
         if (song == null) {
             Column(
@@ -104,13 +113,7 @@ fun NowPlayingScreen(
             return@Box
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
             // ── Top bar: back arrow + "NOW PLAYING" centered ──────────────────
             Row(
                 modifier = Modifier
@@ -135,7 +138,21 @@ fun NowPlayingScreen(
                 Spacer(modifier = Modifier.size(48.dp))
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // ── Body: vertically centered so controls sit lower on tall screens ──
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Spacer(modifier = Modifier.height(16.dp))
 
             // ── Album art ────────────────────────────────────────────────────
             AlbumArt(
@@ -365,14 +382,18 @@ fun NowPlayingScreen(
                                 .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                         )
                     }
+                    val isQueueLabel = label == "Queue"
                     Text(
                         text = label,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (isQueueLabel) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = if (isQueueLabel) Modifier.clickable(onClick = onOpenQueue) else Modifier,
                     )
+                }
                 }
             }
         }
+    }
     }
 }
 

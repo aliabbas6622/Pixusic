@@ -28,6 +28,12 @@ class PlaybackViewModel(private val connection: PlayerConnection) : ViewModel() 
 
     fun setPositionUpdatesEnabled(enabled: Boolean) = connection.setPositionUpdatesEnabled(enabled)
 
+    fun seekToQueueItem(index: Int, positionMs: Long = 0L) = connection.seekToQueueItem(index, positionMs)
+
+    fun removeQueueItem(index: Int) = connection.removeQueueItem(index)
+
+    fun clearQueue() = connection.clearQueue()
+
     override fun onCleared() {
         connection.close()
     }

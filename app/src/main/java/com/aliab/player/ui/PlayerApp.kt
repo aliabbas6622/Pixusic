@@ -1,6 +1,14 @@
 package com.aliab.player.ui
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,16 +58,23 @@ import com.aliab.player.playback.PlaybackViewModel
 import com.aliab.player.playback.PlayerConnection
 import com.aliab.player.ui.albums.AlbumDetailScreen
 import com.aliab.player.ui.albums.AlbumsScreen
+import com.aliab.player.ui.artists.ArtistDetailScreen
 import com.aliab.player.ui.artists.ArtistsScreen
 import com.aliab.player.ui.folders.FolderDetailScreen
 import com.aliab.player.ui.folders.FoldersScreen
 import com.aliab.player.ui.library.LibraryViewModel
 import com.aliab.player.ui.nowplaying.NowPlayingScreen
+import com.aliab.player.ui.queue.QueueScreen
 import com.aliab.player.ui.songs.SongsScreen
 
 private const val NOW_PLAYING_ROUTE = "nowplaying"
+private const val QUEUE_ROUTE = "queue"
 private const val ALBUM_ROUTE = "album"
+private const val ARTIST_ROUTE = "artist"
 private const val FOLDER_ROUTE = "folder"
+
+/** Fast transition durations (160ms for ultra-responsive feel). */
+private const val NAV_TRANSITION_DURATION_MS = 160
 
 /** The four top-level, local-library destinations in the first release. */
 enum class LibraryDestination(val route: String, val label: String, val icon: ImageVector) {
@@ -77,8 +92,7 @@ enum class LibraryDestination(val route: String, val label: String, val icon: Im
 }
 
 /**
- * Root UI for the player. Permission is supplied by the host so this composable stays free of
- * Activity Result APIs and can be previewed or tested as a pure UI function.
+ * Root UI for the player with ultra-fast snappy screen transitions (160ms).
  */
 @Composable
 fun PlayerApp(
@@ -115,7 +129,9 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
     val currentRoute = backStackEntry?.destination?.route
     val selectedDestination = LibraryDestination.fromRoute(currentRoute)
     val isFullScreenRoute = currentRoute == NOW_PLAYING_ROUTE ||
+        currentRoute == QUEUE_ROUTE ||
         currentRoute?.startsWith("$ALBUM_ROUTE/") == true ||
+        currentRoute?.startsWith("$ARTIST_ROUTE/") == true ||
         currentRoute?.startsWith("$FOLDER_ROUTE/") == true
 
     Scaffold(
@@ -151,6 +167,38 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
             navController = navController,
             startDestination = LibraryDestination.Songs.route,
             modifier = Modifier.fillMaxSize(),
+            enterTransition = {
+                fadeIn(
+                    animationSpec = tween(
+                        NAV_TRANSITION_DURATION_MS,
+                        easing = LinearOutSlowInEasing,
+                    ),
+                )
+            },
+            exitTransition = {
+                fadeOut(
+                    animationSpec = tween(
+                        NAV_TRANSITION_DURATION_MS,
+                        easing = FastOutLinearInEasing,
+                    ),
+                )
+            },
+            popEnterTransition = {
+                fadeIn(
+                    animationSpec = tween(
+                        NAV_TRANSITION_DURATION_MS,
+                        easing = LinearOutSlowInEasing,
+                    ),
+                )
+            },
+            popExitTransition = {
+                fadeOut(
+                    animationSpec = tween(
+                        NAV_TRANSITION_DURATION_MS,
+                        easing = FastOutLinearInEasing,
+                    ),
+                )
+            },
         ) {
             LibraryDestination.values().forEach { destination ->
                 composable(destination.route) {
@@ -182,7 +230,7 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
                                 isLoading = libraryLoading,
                                 contentPadding = innerPadding,
                                 onArtistClick = { artist ->
-                                    playbackViewModel.playQueue(libraryViewModel.songsForArtist(artist.name), 0)
+                                    navController.navigate("$ARTIST_ROUTE/${Uri.encode(artist.name)}")
                                 },
                             )
                         }
@@ -200,7 +248,22 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
                     }
                 }
             }
-            composable(NOW_PLAYING_ROUTE) {
+
+            composable(
+                route = NOW_PLAYING_ROUTE,
+                enterTransition = {
+                    slideInVertically(
+                        initialOffsetY = { it },
+                        animationSpec = tween(180, easing = LinearOutSlowInEasing),
+                    ) + fadeIn(tween(180))
+                },
+                popExitTransition = {
+                    slideOutVertically(
+                        targetOffsetY = { it },
+                        animationSpec = tween(160, easing = FastOutLinearInEasing),
+                    ) + fadeOut(tween(160))
+                },
+            ) {
                 NowPlayingScreen(
                     state = playbackState,
                     onBack = { navController.popBackStack() },
@@ -211,8 +274,34 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
                     onShuffleChanged = playbackViewModel::setShuffleEnabled,
                     onRepeatChanged = playbackViewModel::setRepeatMode,
                     onPositionUpdatesEnabled = playbackViewModel::setPositionUpdatesEnabled,
+                    onOpenQueue = { navController.navigate(QUEUE_ROUTE) },
                 )
             }
+
+            composable(
+                route = QUEUE_ROUTE,
+                enterTransition = {
+                    slideInVertically(
+                        initialOffsetY = { it },
+                        animationSpec = tween(180, easing = LinearOutSlowInEasing),
+                    ) + fadeIn(tween(180))
+                },
+                popExitTransition = {
+                    slideOutVertically(
+                        targetOffsetY = { it },
+                        animationSpec = tween(160, easing = FastOutLinearInEasing),
+                    ) + fadeOut(tween(160))
+                },
+            ) {
+                QueueScreen(
+                    state = playbackState,
+                    onBack = { navController.popBackStack() },
+                    onSelectQueueItem = { index -> playbackViewModel.seekToQueueItem(index) },
+                    onRemoveQueueItem = { index -> playbackViewModel.removeQueueItem(index) },
+                    onClearQueue = { playbackViewModel.clearQueue() },
+                )
+            }
+
             composable(
                 route = "$ALBUM_ROUTE/{albumId}",
                 arguments = listOf(navArgument("albumId") { type = NavType.LongType }),
@@ -232,6 +321,24 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
                     onTrackClick = { index -> playbackViewModel.playQueue(tracks, index) },
                 )
             }
+
+            composable(
+                route = "$ARTIST_ROUTE/{artistName}",
+                arguments = listOf(navArgument("artistName") { type = NavType.StringType }),
+            ) { entry ->
+                val artistName = entry.arguments?.getString("artistName").orEmpty()
+                val songs by libraryViewModel.songs.collectAsStateWithLifecycle()
+                val artistTracks = remember(artistName, songs) {
+                    libraryViewModel.songsForArtist(artistName)
+                }
+                ArtistDetailScreen(
+                    artistName = artistName,
+                    tracks = artistTracks,
+                    onBack = { navController.popBackStack() },
+                    onTrackClick = { index -> playbackViewModel.playQueue(artistTracks, index) },
+                )
+            }
+
             composable(
                 route = "$FOLDER_ROUTE/{folderPath}",
                 arguments = listOf(navArgument("folderPath") { type = NavType.StringType }),
@@ -310,7 +417,6 @@ private fun AudioPermissionRequired(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        // Music note icon as a visual anchor
         Box(
             modifier = Modifier
                 .size(72.dp)

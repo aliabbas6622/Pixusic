@@ -114,14 +114,14 @@ fun AlbumDetailScreen(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Text(
-                        text = album,
+                        text = com.aliab.player.ui.formatDisplayName(album),
                         style = MaterialTheme.typography.headlineSmall,
                         textAlign = TextAlign.Center,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = tracks.first().artist,
+                        text = com.aliab.player.ui.formatDisplayName(tracks.first().artist),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

@@ -125,13 +125,13 @@ private fun AlbumCard(
             shape = RoundedCornerShape(14.dp),
         )
         Text(
-            text = album.name,
+            text = com.aliab.player.ui.formatDisplayName(album.name),
             style = MaterialTheme.typography.titleSmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 8.dp),
         )
-        val subtitle = listOfNotNull(album.artist, album.year?.toString()).joinToString(" · ")
+        val subtitle = listOfNotNull(com.aliab.player.ui.formatDisplayName(album.artist), album.year?.toString()).joinToString(" · ")
         if (subtitle.isNotEmpty()) {
             Text(
                 text = subtitle,

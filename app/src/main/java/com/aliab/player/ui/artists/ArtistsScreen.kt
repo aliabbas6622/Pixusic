@@ -135,7 +135,7 @@ private fun ArtistRow(
                 .padding(horizontal = 14.dp),
         ) {
             Text(
-                text = artist.name,
+                text = com.aliab.player.ui.formatDisplayName(artist.name),
                 style = MaterialTheme.typography.titleSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

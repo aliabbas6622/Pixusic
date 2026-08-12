@@ -45,6 +45,13 @@ class LibraryViewModel(
     private val _folderLoading = MutableStateFlow(false)
     val folderLoading: StateFlow<Boolean> = _folderLoading.asStateFlow()
 
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
     init {
         viewModelScope.launch {
             val catalog = mediaStoreRepository.querySongs()
