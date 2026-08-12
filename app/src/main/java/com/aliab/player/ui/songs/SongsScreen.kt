@@ -19,9 +19,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,6 +57,11 @@ fun SongsScreen(
     isLoading: Boolean,
     contentPadding: PaddingValues,
     onSongClick: (Int) -> Unit,
+    onAddNext: (Song) -> Unit = {},
+    onAddToQueueEnd: (Song) -> Unit = {},
+    currentSort: com.aliab.player.data.settings.SongSort = com.aliab.player.data.settings.SongSort.TITLE,
+    isAscending: Boolean = true,
+    onSortChanged: (com.aliab.player.data.settings.SongSort, Boolean) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -73,7 +83,9 @@ fun SongsScreen(
             .fillMaxSize()
             .padding(contentPadding),
     ) {
-        // Header Row with Title + Count
+        var showSortDialog by remember { mutableStateOf(false) }
+
+        // Header Row with Title + Count + Sort Button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -94,6 +106,30 @@ fun SongsScreen(
                     )
                 }
             }
+            if (songs.isNotEmpty()) {
+                IconButton(
+                    onClick = { showSortDialog = true },
+                    modifier = Modifier.padding(bottom = 2.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.Sort,
+                        contentDescription = "Sort options",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+        }
+
+        if (showSortDialog) {
+            SortOptionsDialog(
+                currentSort = currentSort,
+                isAscending = isAscending,
+                onDismiss = { showSortDialog = false },
+                onSelectSort = { sort, asc ->
+                    onSortChanged(sort, asc)
+                    showSortDialog = false
+                },
+            )
         }
 
         // Sleek Minimal Search Box
@@ -189,7 +225,12 @@ fun SongsScreen(
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     itemsIndexed(filteredSongs, key = { _, song -> song.id }) { index, song ->
                         val originalIndex = songs.indexOf(song).let { if (it >= 0) it else index }
-                        SongRow(song = song, onClick = { onSongClick(originalIndex) })
+                        SongRow(
+                            song = song,
+                            onClick = { onSongClick(originalIndex) },
+                            onAddNext = { onAddNext(song) },
+                            onAddToQueueEnd = { onAddToQueueEnd(song) },
+                        )
                         if (index < filteredSongs.lastIndex) {
                             HorizontalDivider(
                                 modifier = Modifier.padding(start = 80.dp, end = 16.dp),
@@ -209,14 +250,18 @@ fun SongsScreen(
 private fun SongRow(
     song: Song,
     onClick: () -> Unit,
+    onAddNext: () -> Unit = {},
+    onAddToQueueEnd: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 68.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AlbumArt(
@@ -249,5 +294,114 @@ private fun SongRow(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        Box {
+            IconButton(
+                onClick = { menuExpanded = true },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.MoreVert,
+                    contentDescription = "More options",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Play Next", style = MaterialTheme.typography.bodyMedium) },
+                    leadingIcon = {
+                        Text("▶+", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    },
+                    onClick = {
+                        menuExpanded = false
+                        onAddNext()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("Add to Queue", style = MaterialTheme.typography.bodyMedium) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.PlaylistAdd,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    onClick = {
+                        menuExpanded = false
+                        onAddToQueueEnd()
+                    },
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun SortOptionsDialog(
+    currentSort: com.aliab.player.data.settings.SongSort,
+    isAscending: Boolean,
+    onDismiss: () -> Unit,
+    onSelectSort: (com.aliab.player.data.settings.SongSort, Boolean) -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Sort Songs",
+                style = MaterialTheme.typography.titleMedium,
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                com.aliab.player.data.settings.SongSort.entries.forEach { sort ->
+                    val isSelected = sort == currentSort
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 44.dp)
+                            .clickable { onSelectSort(sort, isAscending) }
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = when (sort) {
+                                com.aliab.player.data.settings.SongSort.TITLE -> "Title"
+                                com.aliab.player.data.settings.SongSort.ARTIST -> "Artist"
+                                com.aliab.player.data.settings.SongSort.ALBUM -> "Album"
+                                com.aliab.player.data.settings.SongSort.DATE_ADDED -> "Date Added"
+                            },
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (isSelected) {
+                            Text(
+                                text = if (isAscending) "↑ Asc" else "↓ Desc",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier
+                                    .clickable { onSelectSort(sort, !isAscending) }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("Close", color = MaterialTheme.colorScheme.onSurface)
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+    )
 }

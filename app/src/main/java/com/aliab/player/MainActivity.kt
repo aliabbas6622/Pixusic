@@ -36,6 +36,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        hasAudioPermission = hasAudioPermission()
+    }
+
     private fun requestAudioPermission() {
         if (!hasAudioPermission()) {
             audioPermissionLauncher.launch(audioPermission())

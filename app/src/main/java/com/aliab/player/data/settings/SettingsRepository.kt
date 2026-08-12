@@ -42,11 +42,11 @@ data class AppSettings(
 	val songSort: SongSort = SongSort.TITLE,
 	val songsSortAscending: Boolean = true,
 	val restorePlaybackOnLaunch: Boolean = true,
+	val favoriteSongIds: Set<Long> = emptySet(),
 )
 
 /**
- * Persists small user preferences. Values are written only after a user action and are exposed as
- * one immutable stream so callers can safely render the latest settings.
+ * Persists user preferences and favorites. Values are written after user actions.
  */
 class SettingsRepository(context: Context) {
 	private val dataStore = context.applicationContext.settingsDataStore
@@ -87,12 +87,26 @@ class SettingsRepository(context: Context) {
 		}
 	}
 
+	suspend fun toggleFavorite(songId: Long) {
+		dataStore.edit { preferences ->
+			val current = preferences[Keys.favoriteSongIds] ?: emptySet()
+			val stringId = songId.toString()
+			val updated = if (current.contains(stringId)) {
+				current - stringId
+			} else {
+				current + stringId
+			}
+			preferences[Keys.favoriteSongIds] = updated
+		}
+	}
+
 	private fun toAppSettings(preferences: Preferences): AppSettings = AppSettings(
 		themeMode = preferences[Keys.themeMode].toThemeMode(),
 		useDynamicColor = preferences[Keys.dynamicColorEnabled] ?: true,
 		songSort = preferences[Keys.songSort].toSongSort(),
 		songsSortAscending = preferences[Keys.songsSortAscending] ?: true,
 		restorePlaybackOnLaunch = preferences[Keys.restorePlaybackOnLaunch] ?: true,
+		favoriteSongIds = (preferences[Keys.favoriteSongIds] ?: emptySet()).mapNotNull { it.toLongOrNull() }.toSet(),
 	)
 
 	private object Keys {
@@ -101,6 +115,7 @@ class SettingsRepository(context: Context) {
 		val songSort = stringPreferencesKey("song_sort")
 		val songsSortAscending = booleanPreferencesKey("songs_sort_ascending")
 		val restorePlaybackOnLaunch = booleanPreferencesKey("restore_playback_on_launch")
+		val favoriteSongIds = androidx.datastore.preferences.core.stringSetPreferencesKey("favorite_song_ids")
 	}
 }
 

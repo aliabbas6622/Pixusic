@@ -28,6 +28,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -80,6 +82,8 @@ fun NowPlayingScreen(
     onRepeatChanged: (PlaybackRepeatMode) -> Unit,
     onPositionUpdatesEnabled: (Boolean) -> Unit,
     onOpenQueue: () -> Unit = {},
+    isFavorite: Boolean = false,
+    onToggleFavorite: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     DisposableEffect(Unit) {
@@ -135,7 +139,13 @@ fun NowPlayingScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f),
                 )
-                Spacer(modifier = Modifier.size(48.dp))
+                IconButton(onClick = onToggleFavorite) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                        tint = if (isFavorite) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             // ── Body: vertically centered so controls sit lower on tall screens ──

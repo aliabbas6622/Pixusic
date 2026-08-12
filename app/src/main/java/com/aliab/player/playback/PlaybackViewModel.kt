@@ -30,6 +30,12 @@ class PlaybackViewModel(private val connection: PlayerConnection) : ViewModel() 
 
     fun seekToQueueItem(index: Int, positionMs: Long = 0L) = connection.seekToQueueItem(index, positionMs)
 
+    fun addNext(song: Song) = connection.addNext(song)
+
+    fun addToQueueEnd(song: Song) = connection.addToQueueEnd(song)
+
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) = connection.moveQueueItem(fromIndex, toIndex)
+
     fun removeQueueItem(index: Int) = connection.removeQueueItem(index)
 
     fun clearQueue() = connection.clearQueue()

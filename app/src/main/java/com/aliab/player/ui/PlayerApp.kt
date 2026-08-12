@@ -205,11 +205,19 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
                     when (destination) {
                         LibraryDestination.Songs -> {
                             val songs by libraryViewModel.songs.collectAsStateWithLifecycle()
+                            val currentSort by libraryViewModel.currentSort.collectAsStateWithLifecycle()
+                            val isAscending by libraryViewModel.isAscending.collectAsStateWithLifecycle()
+
                             SongsScreen(
                                 songs = songs,
                                 isLoading = libraryLoading,
                                 contentPadding = innerPadding,
                                 onSongClick = { index -> playbackViewModel.playQueue(songs, index) },
+                                onAddNext = { song -> playbackViewModel.addNext(song) },
+                                onAddToQueueEnd = { song -> playbackViewModel.addToQueueEnd(song) },
+                                currentSort = currentSort,
+                                isAscending = isAscending,
+                                onSortChanged = libraryViewModel::setSongSort,
                             )
                         }
                         LibraryDestination.Albums -> {
@@ -264,6 +272,12 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
                     ) + fadeOut(tween(160))
                 },
             ) {
+                val favoriteSongIds by libraryViewModel.favoriteSongIds.collectAsStateWithLifecycle()
+                val currentSongId = playbackState.currentSong?.id ?: -1L
+                val isCurrentFavorite = remember(favoriteSongIds, currentSongId) {
+                    favoriteSongIds.contains(currentSongId)
+                }
+
                 NowPlayingScreen(
                     state = playbackState,
                     onBack = { navController.popBackStack() },
@@ -275,6 +289,12 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
                     onRepeatChanged = playbackViewModel::setRepeatMode,
                     onPositionUpdatesEnabled = playbackViewModel::setPositionUpdatesEnabled,
                     onOpenQueue = { navController.navigate(QUEUE_ROUTE) },
+                    isFavorite = isCurrentFavorite,
+                    onToggleFavorite = {
+                        if (currentSongId > 0L) {
+                            libraryViewModel.toggleFavorite(currentSongId)
+                        }
+                    },
                 )
             }
 
@@ -293,12 +313,16 @@ private fun LibraryShell(modifier: Modifier = Modifier) {
                     ) + fadeOut(tween(160))
                 },
             ) {
+                val allSongs by libraryViewModel.songs.collectAsStateWithLifecycle()
                 QueueScreen(
                     state = playbackState,
+                    allSongs = allSongs,
                     onBack = { navController.popBackStack() },
                     onSelectQueueItem = { index -> playbackViewModel.seekToQueueItem(index) },
                     onRemoveQueueItem = { index -> playbackViewModel.removeQueueItem(index) },
                     onClearQueue = { playbackViewModel.clearQueue() },
+                    onAddNext = { song -> playbackViewModel.addNext(song) },
+                    onAddToQueueEnd = { song -> playbackViewModel.addToQueueEnd(song) },
                 )
             }
 

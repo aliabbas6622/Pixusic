@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
  */
 class LibraryViewModel(
     private val mediaStoreRepository: MediaStoreRepository,
-    settingsRepository: SettingsRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
@@ -48,8 +48,29 @@ class LibraryViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _favoriteSongIds = MutableStateFlow<Set<Long>>(emptySet())
+    val favoriteSongIds: StateFlow<Set<Long>> = _favoriteSongIds.asStateFlow()
+
+    private val _currentSort = MutableStateFlow(SongSort.TITLE)
+    val currentSort: StateFlow<SongSort> = _currentSort.asStateFlow()
+
+    private val _isAscending = MutableStateFlow(true)
+    val isAscending: StateFlow<Boolean> = _isAscending.asStateFlow()
+
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
+    }
+
+    fun toggleFavorite(songId: Long) {
+        viewModelScope.launch {
+            settingsRepository.toggleFavorite(songId)
+        }
+    }
+
+    fun setSongSort(sort: SongSort, ascending: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setSongSort(sort, ascending)
+        }
     }
 
     init {
@@ -57,7 +78,12 @@ class LibraryViewModel(
             val catalog = mediaStoreRepository.querySongs()
             _isLoading.value = false
             settingsRepository.settings.collect { settings ->
-                _songs.value = catalog.sortedWith(songComparator(settings.songSort, settings.songsSortAscending))
+                _favoriteSongIds.value = settings.favoriteSongIds
+                _currentSort.value = settings.songSort
+                _isAscending.value = settings.songsSortAscending
+                _songs.value = catalog.sortedWith(
+                    songComparator(settings.songSort, settings.songsSortAscending),
+                )
             }
         }
         viewModelScope.launch { _albums.value = mediaStoreRepository.queryAlbums() }

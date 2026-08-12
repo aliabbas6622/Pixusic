@@ -18,19 +18,20 @@ Every completed phase, update, and feature gets a numbered markdown file here so
 | Project skeleton (Phase 1) | Done — permission flow, theme, nav shell, manual DI |
 | Playback engine (Phase 2) | Done — service + controller + queue ops + mini player + Now Playing, device-verified |
 | MediaStore library (Phase 3) | Done — Songs, Albums (+detail), Artists (+detail), Folders (+detail), device-verified |
-| Queue & Search (Phase 5+) | **Done** — Queue view (`QueueScreen`) fully wired (see `09`), instant search filtering (`SongsScreen`) |
-| Transitions & Speed | **Done** — Ultra-fast 160ms–180ms transitions enabled across `NavHost` (see `08`) |
-| Now Playing layout | **Done** — vertically centered body + system-bar insets; controls sit lower (see `09`), device-verified |
-| App persistence (Phase 4) | Settings only; Room DB for Favorites / Playlists pending |
-| Final UI (Phase 5) | **Done** — full visual-polish pass complete (see `07` & `08`); reference aligned |
-| GitHub | **Live** — public repo `aliabbas6622/Pixusic`, commits `6d59409` + `ee2638c` pushed (see `09`) |
+| Queue & Search (Phase 5+) | Done — Queue view (`QueueScreen`), instant search filtering (`SongsScreen`) |
+| Transitions & Speed | Done — Ultra-fast 160ms–180ms transitions enabled across `NavHost` (see `08`) |
+| Favorites System (Phase 4) | **Done** — DataStore persistent favorites + Heart toggle in Now Playing (see `09`) |
+| Song Sort UI Options | **Done** — Dialog to sort by Title, Artist, Album, Date Added + Asc/Desc toggle (see `09`) |
+| Queue management | **Done** — two-tab queue screen (Now Playing / Add Songs) + per-song ⋮ Play Next / Add to Queue (see `11`) |
+| Junk audio auto-filter | **Done** — WhatsApp voice notes (`AUD-…`), short clips & system sounds filtered at query time across all tabs; 129→42 songs verified on-device (see `11`) |
+| Now Playing layout | **Done** — vertically balanced + system-bar insets (see `10`) |
+| GitHub | **Live** — public repo `aliabbas6622/Pixusic` (see `10`) |
+| Code Review Items | **Done** — Fixed #5 (onResume permission re-check in `MainActivity`) |
 | Performance pass (Phase 6) | Not started |
 | Baseline/Startup profiles (Phase 7) | Not started |
 
 ## What's next (recommended order)
 
-1. **Room Database Persistence (Phase 4)** — `Favorite`, `Playlist`, `PlaylistEntry`, `PlayHistory` tables for favorites & user playlists.
-2. **Strings Migration** — migrate hardcoded UI strings from Kotlin to `strings.xml`.
-3. **Sort UI Options** — add popup/sheet to change sorting options (Title, Artist, Album, Date Added).
-4. **Extend Search** — Songs-only filtering today; add Albums / Artists / Folders.
-5. **Code Review Items** — wake mode check (#3), permission re-check on resume (#5).
+1. **Strings Migration** — migrate hardcoded UI strings from Kotlin to `strings.xml`.
+2. **User Playlists** — create local user playlists (create, add tracks, remove tracks).
+3. **Folder Blacklist / Exclusion** — allow users to exclude specific folders from library scanning.
