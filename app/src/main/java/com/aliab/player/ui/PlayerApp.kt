@@ -376,16 +376,20 @@ private fun LibraryShell(
                     favoriteSongIds.contains(currentSongId)
                 }
 
+                val sleepTimerRemainingMs by playbackViewModel.sleepTimerRemainingMs.collectAsStateWithLifecycle()
+
                 NowPlayingScreen(
                     state = playbackState,
                     onBack = { navController.popBackStack() },
-                    onTogglePlayPause = playbackViewModel::togglePlayPause,
-                    onNext = playbackViewModel::skipToNext,
-                    onPrevious = playbackViewModel::skipToPrevious,
-                    onSeek = playbackViewModel::seekTo,
-                    onShuffleChanged = playbackViewModel::setShuffleEnabled,
-                    onRepeatChanged = playbackViewModel::setRepeatMode,
-                    onPositionUpdatesEnabled = playbackViewModel::setPositionUpdatesEnabled,
+                    onTogglePlayPause = { playbackViewModel.togglePlayPause() },
+                    onNext = { playbackViewModel.skipToNext() },
+                    onPrevious = { playbackViewModel.skipToPrevious() },
+                    onSeek = { positionMs -> playbackViewModel.seekTo(positionMs) },
+                    onShuffleChanged = { enabled -> playbackViewModel.setShuffleEnabled(enabled) },
+                    onRepeatChanged = { mode -> playbackViewModel.setRepeatMode(mode) },
+                    onPositionUpdatesEnabled = { enabled ->
+                        playbackViewModel.setPositionUpdatesEnabled(enabled)
+                    },
                     onOpenQueue = { navController.navigate(QUEUE_ROUTE) },
                     isFavorite = isCurrentFavorite,
                     onToggleFavorite = {
@@ -393,6 +397,10 @@ private fun LibraryShell(
                             libraryViewModel.toggleFavorite(currentSongId)
                         }
                     },
+                    sleepTimerRemainingMs = sleepTimerRemainingMs,
+                    onStartSleepTimer = { mins -> playbackViewModel.startSleepTimer(mins) },
+                    onStartSleepTimerEndOfTrack = { playbackViewModel.startSleepTimerEndOfTrack() },
+                    onCancelSleepTimer = { playbackViewModel.cancelSleepTimer() },
                 )
             }
 

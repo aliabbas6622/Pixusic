@@ -114,6 +114,10 @@ class PlayerConnection(context: Context) : AutoCloseable {
         controller?.repeatMode = mode.playerValue
     }
 
+    fun setVolume(volume: Float) {
+        controller?.volume = volume.coerceIn(0f, 1f)
+    }
+
     /** Replaces the queue and begins playback from [startIndex]. */
     fun playQueue(songs: List<Song>, startIndex: Int = 0, positionMs: Long = 0L) {
         if (songs.isEmpty()) return

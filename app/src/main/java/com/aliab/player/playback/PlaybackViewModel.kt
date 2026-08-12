@@ -1,8 +1,14 @@
 package com.aliab.player.playback
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.aliab.player.model.Song
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * Activity-scoped owner of the [PlayerConnection]. Rebuilding the connection is cheap: playback
@@ -42,7 +48,59 @@ class PlaybackViewModel(private val connection: PlayerConnection) : ViewModel() 
 
     fun clearQueue() = connection.clearQueue()
 
+    private val _sleepTimerRemainingMs = MutableStateFlow<Long?>(null)
+    val sleepTimerRemainingMs: StateFlow<Long?> = _sleepTimerRemainingMs.asStateFlow()
+
+    private var sleepTimerJob: Job? = null
+    private var isEndOfTrackSleepTimer = false
+
+    fun startSleepTimer(durationMinutes: Int, fadeOut: Boolean = true) {
+        cancelSleepTimer()
+        isEndOfTrackSleepTimer = false
+        val totalMs = durationMinutes * 60 * 1000L
+        sleepTimerJob = viewModelScope.launch {
+            var remaining = totalMs
+            val stepMs = 1000L
+            while (remaining > 0) {
+                _sleepTimerRemainingMs.value = remaining
+                delay(stepMs)
+                remaining -= stepMs
+                if (fadeOut && remaining <= 10_000L && remaining > 0) {
+                    val volume = (remaining.toFloat() / 10_000L).coerceIn(0f, 1f)
+                    connection.setVolume(volume)
+                }
+            }
+            _sleepTimerRemainingMs.value = null
+            connection.pause()
+            connection.setVolume(1.0f)
+        }
+    }
+
+    fun startSleepTimerEndOfTrack() {
+        cancelSleepTimer()
+        isEndOfTrackSleepTimer = true
+        _sleepTimerRemainingMs.value = -1L // Indicates end-of-track mode
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        isEndOfTrackSleepTimer = false
+        _sleepTimerRemainingMs.value = null
+        connection.setVolume(1.0f)
+    }
+
+    fun checkEndOfTrackSleepTimer() {
+        if (isEndOfTrackSleepTimer) {
+            cancelSleepTimer()
+            connection.pause()
+        }
+    }
+
+    fun setVolume(volume: Float) = connection.setVolume(volume)
+
     override fun onCleared() {
+        cancelSleepTimer()
         connection.close()
     }
 }

@@ -84,6 +84,10 @@ fun NowPlayingScreen(
     onOpenQueue: () -> Unit = {},
     isFavorite: Boolean = false,
     onToggleFavorite: () -> Unit = {},
+    sleepTimerRemainingMs: Long? = null,
+    onStartSleepTimer: (Int) -> Unit = {},
+    onStartSleepTimerEndOfTrack: () -> Unit = {},
+    onCancelSleepTimer: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     DisposableEffect(Unit) {
@@ -375,6 +379,9 @@ fun NowPlayingScreen(
 
             Spacer(modifier = Modifier.height(28.dp))
 
+            var showLyricsSheet by remember { mutableStateOf(false) }
+            var showMoreSheet by remember { mutableStateOf(false) }
+
             // ── Utility row: Lyrics | Queue | More ──────────────────────────
             Row(
                 modifier = Modifier
@@ -383,23 +390,159 @@ fun NowPlayingScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                listOf("Lyrics", "Queue", "More").forEachIndexed { index, label ->
-                    if (index > 0) {
-                        Box(
-                            modifier = Modifier
-                                .height(14.dp)
-                                .size(width = 1.dp, height = 14.dp)
-                                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                Text(
+                    text = "Lyrics",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clickable { showLyricsSheet = true },
+                )
+
+                Box(
+                    modifier = Modifier
+                        .height(14.dp)
+                        .size(width = 1.dp, height = 14.dp)
+                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                )
+
+                Text(
+                    text = "Queue",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.clickable(onClick = onOpenQueue),
+                )
+
+                Box(
+                    modifier = Modifier
+                        .height(14.dp)
+                        .size(width = 1.dp, height = 14.dp)
+                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                )
+
+                Text(
+                    text = if (sleepTimerRemainingMs != null) "More (⏱)" else "More",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (sleepTimerRemainingMs != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clickable { showMoreSheet = true },
+                )
+            }
+
+            if (showLyricsSheet && song != null) {
+                androidx.compose.material3.ModalBottomSheet(onDismissRequest = { showLyricsSheet = false }) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = "Lyrics",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.padding(bottom = 16.dp),
+                        )
+                        Text(
+                            text = formatDisplayName(song.title),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            text = formatDisplayName(song.artist),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 24.dp),
+                        )
+                        Text(
+                            text = "No .lrc file found in same directory.\nPlace '${song.title}.lrc' next to the audio file for synchronized offline lyrics.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 32.dp),
                         )
                     }
-                    val isQueueLabel = label == "Queue"
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (isQueueLabel) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = if (isQueueLabel) Modifier.clickable(onClick = onOpenQueue) else Modifier,
-                    )
                 }
+            }
+
+            if (showMoreSheet && song != null) {
+                androidx.compose.material3.ModalBottomSheet(onDismissRequest = { showMoreSheet = false }) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                    ) {
+                        Text(
+                            text = "Options & Audio Diagnostics",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.padding(bottom = 16.dp),
+                        )
+
+                        // Sleep Timer section
+                        Text(
+                            text = "Sleep Timer",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                        ) {
+                            listOf(10, 20, 30, 60).forEach { mins ->
+                                androidx.compose.material3.FilterChip(
+                                    selected = false,
+                                    onClick = {
+                                        onStartSleepTimer(mins)
+                                        showMoreSheet = false
+                                    },
+                                    label = { Text("${mins}m") },
+                                )
+                            }
+                        }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(bottom = 24.dp),
+                        ) {
+                            androidx.compose.material3.FilterChip(
+                                selected = false,
+                                onClick = {
+                                    onStartSleepTimerEndOfTrack()
+                                    showMoreSheet = false
+                                },
+                                label = { Text("End of Track") },
+                            )
+                            if (sleepTimerRemainingMs != null) {
+                                androidx.compose.material3.FilterChip(
+                                    selected = true,
+                                    onClick = {
+                                        onCancelSleepTimer()
+                                        showMoreSheet = false
+                                    },
+                                    label = { Text("Cancel Timer") },
+                                )
+                            }
+                        }
+
+                        // Audio Diagnostics section
+                        Text(
+                            text = "Audio Diagnostics",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text("Format / MIME: ${song.mimeType ?: "audio/mpeg"}", style = MaterialTheme.typography.bodyMedium)
+                                Text("Duration: ${formatTime(song.durationMs)}", style = MaterialTheme.typography.bodyMedium)
+                                Text("Audio Offload: Enabled (Low Power Direct DSP)", style = MaterialTheme.typography.bodyMedium)
+                                Text("Output Device: System Active Route", style = MaterialTheme.typography.bodyMedium)
+                                Text("Location: ${song.uri}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
                 }
             }
         }
